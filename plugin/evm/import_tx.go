@@ -16,7 +16,7 @@ import (
 	"github.com/lasthyphen/dijetalgo/snow"
 	"github.com/lasthyphen/dijetalgo/utils/crypto"
 	"github.com/lasthyphen/dijetalgo/utils/math"
-	"github.com/lasthyphen/dijetalgo/vms/components/djtx"
+	"github.com/lasthyphen/dijetalgo/vms/components/avax"
 	"github.com/lasthyphen/dijetalgo/vms/secp256k1fx"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,7 +24,7 @@ import (
 
 // UnsignedImportTx is an unsigned ImportTx
 type UnsignedImportTx struct {
-	djtx.Metadata
+	avax.Metadata
 	// ID of the network on which this tx was issued
 	NetworkID uint32 `serialize:"true" json:"networkID"`
 	// ID of this blockchain.
@@ -32,7 +32,7 @@ type UnsignedImportTx struct {
 	// Which chain to consume the funds from
 	SourceChain ids.ID `serialize:"true" json:"sourceChain"`
 	// Inputs that consume UTXOs produced on the chain
-	ImportedInputs []*djtx.TransferableInput `serialize:"true" json:"importedInputs"`
+	ImportedInputs []*avax.TransferableInput `serialize:"true" json:"importedInputs"`
 	// Outputs
 	Outs []EVMOutput `serialize:"true" json:"outputs"`
 }
@@ -78,7 +78,7 @@ func (tx *UnsignedImportTx) Verify(
 			return fmt.Errorf("atomic input failed verification: %w", err)
 		}
 	}
-	if !djtx.IsSortedAndUniqueTransferableInputs(tx.ImportedInputs) {
+	if !avax.IsSortedAndUniqueTransferableInputs(tx.ImportedInputs) {
 		return errInputsNotSortedUnique
 	}
 
@@ -150,7 +150,7 @@ func (tx *UnsignedImportTx) SemanticVerify(
 	}
 
 	// Check the transaction consumes and produces the right amounts
-	fc := djtx.NewFlowChecker()
+	fc := avax.NewFlowChecker()
 	switch {
 	// Apply dynamic fees to import transactions as of Apricot Phase 3
 	case rules.IsApricotPhase3:
@@ -162,11 +162,11 @@ func (tx *UnsignedImportTx) SemanticVerify(
 		if err != nil {
 			return err
 		}
-		fc.Produce(vm.ctx.DJTXAssetID, txFee)
+		fc.Produce(vm.ctx.AVAXAssetID, txFee)
 
 	// Apply fees to import transactions as of Apricot Phase 2
 	case rules.IsApricotPhase2:
-		fc.Produce(vm.ctx.DJTXAssetID, params.AvalancheAtomicTxFee)
+		fc.Produce(vm.ctx.AVAXAssetID, params.AvalancheAtomicTxFee)
 	}
 	for _, out := range tx.Outs {
 		fc.Produce(out.AssetID, out.Amount)
@@ -202,7 +202,7 @@ func (tx *UnsignedImportTx) SemanticVerify(
 	for i, in := range tx.ImportedInputs {
 		utxoBytes := allUTXOBytes[i]
 
-		utxo := &djtx.UTXO{}
+		utxo := &avax.UTXO{}
 		if _, err := vm.codec.Unmarshal(utxoBytes, utxo); err != nil {
 			return fmt.Errorf("failed to unmarshal UTXO: %w", err)
 		}
@@ -258,7 +258,7 @@ func (vm *VM) newImportTx(
 		return nil, fmt.Errorf("problem retrieving atomic UTXOs: %w", err)
 	}
 
-	importedInputs := []*djtx.TransferableInput{}
+	importedInputs := []*avax.TransferableInput{}
 	signers := [][]*crypto.PrivateKeySECP256K1R{}
 
 	importedAmount := make(map[ids.ID]uint64)
@@ -268,7 +268,7 @@ func (vm *VM) newImportTx(
 		if err != nil {
 			continue
 		}
-		input, ok := inputIntf.(djtx.TransferableIn)
+		input, ok := inputIntf.(avax.TransferableIn)
 		if !ok {
 			continue
 		}
@@ -277,23 +277,23 @@ func (vm *VM) newImportTx(
 		if err != nil {
 			return nil, err
 		}
-		importedInputs = append(importedInputs, &djtx.TransferableInput{
+		importedInputs = append(importedInputs, &avax.TransferableInput{
 			UTXOID: utxo.UTXOID,
 			Asset:  utxo.Asset,
 			In:     input,
 		})
 		signers = append(signers, utxoSigners)
 	}
-	djtx.SortTransferableInputsWithSigners(importedInputs, signers)
-	importedDJTXAmount := importedAmount[vm.ctx.DJTXAssetID]
+	avax.SortTransferableInputsWithSigners(importedInputs, signers)
+	importedAVAXAmount := importedAmount[vm.ctx.AVAXAssetID]
 
 	outs := make([]EVMOutput, 0, len(importedAmount))
 	// This will create unique outputs (in the context of sorting)
 	// since each output will have a unique assetID
 	for assetID, amount := range importedAmount {
-		// Skip the DJTX amount since it is included separately to account for
+		// Skip the AVAX amount since it is included separately to account for
 		// the fee
-		if assetID == vm.ctx.DJTXAssetID || amount == 0 {
+		if assetID == vm.ctx.AVAXAssetID || amount == 0 {
 			continue
 		}
 		outs = append(outs, EVMOutput{
@@ -345,21 +345,21 @@ func (vm *VM) newImportTx(
 		txFeeWithChange = params.AvalancheAtomicTxFee
 	}
 
-	// DJTX output
-	if importedDJTXAmount < txFeeWithoutChange { // imported amount goes toward paying tx fee
+	// AVAX output
+	if importedAVAXAmount < txFeeWithoutChange { // imported amount goes toward paying tx fee
 		return nil, errInsufficientFundsForFee
 	}
 
-	if importedDJTXAmount > txFeeWithChange {
+	if importedAVAXAmount > txFeeWithChange {
 		outs = append(outs, EVMOutput{
 			Address: to,
-			Amount:  importedDJTXAmount - txFeeWithChange,
-			AssetID: vm.ctx.DJTXAssetID,
+			Amount:  importedAVAXAmount - txFeeWithChange,
+			AssetID: vm.ctx.AVAXAssetID,
 		})
 	}
 
 	// If no outputs are produced, return an error.
-	// Note: this can happen if there is exactly enough DJTX to pay the
+	// Note: this can happen if there is exactly enough AVAX to pay the
 	// transaction fee, but no other funds to be imported.
 	if len(outs) == 0 {
 		return nil, errNoEVMOutputs
@@ -386,9 +386,9 @@ func (vm *VM) newImportTx(
 // accounts accordingly with the imported EVMOutputs
 func (tx *UnsignedImportTx) EVMStateTransfer(ctx *snow.Context, state *state.StateDB) error {
 	for _, to := range tx.Outs {
-		if to.AssetID == ctx.DJTXAssetID {
-			log.Debug("crosschain X->C", "addr", to.Address, "amount", to.Amount, "assetID", "DJTX")
-			// If the asset is DJTX, convert the input amount in nDJTX to gWei by
+		if to.AssetID == ctx.AVAXAssetID {
+			log.Debug("crosschain X->C", "addr", to.Address, "amount", to.Amount, "assetID", "AVAX")
+			// If the asset is AVAX, convert the input amount in nAVAX to gWei by
 			// multiplying by the x2c rate.
 			amount := new(big.Int).Mul(
 				new(big.Int).SetUint64(to.Amount), x2cRate)

@@ -52,7 +52,7 @@ import (
 	"github.com/lasthyphen/dijetalgo/utils/profiler"
 	"github.com/lasthyphen/dijetalgo/utils/timer/mockable"
 	"github.com/lasthyphen/dijetalgo/utils/wrappers"
-	"github.com/lasthyphen/dijetalgo/vms/components/djtx"
+	"github.com/lasthyphen/dijetalgo/vms/components/avax"
 	"github.com/lasthyphen/dijetalgo/vms/components/chain"
 	"github.com/lasthyphen/dijetalgo/vms/secp256k1fx"
 
@@ -68,8 +68,8 @@ const (
 
 var (
 	// x2cRate is the conversion rate between the smallest denomination on the X-Chain
-	// 1 nDJTX and the smallest denomination on the C-Chain 1 wei. Where 1 nDJTX = 1 gWei.
-	// This is only required for DJTX because the denomination of 1 DJTX is 9 decimal
+	// 1 nAVAX and the smallest denomination on the C-Chain 1 wei. Where 1 nAVAX = 1 gWei.
+	// This is only required for AVAX because the denomination of 1 AVAX is 9 decimal
 	// places on the X and P chains, but is 18 decimal places within the EVM.
 	x2cRate       = big.NewInt(x2cRateInt64)
 	x2cRateMinus1 = big.NewInt(x2cRateMinus1Int64)
@@ -93,7 +93,7 @@ const (
 
 // Define the API endpoints for the VM
 const (
-	djtxEndpoint   = "/djtx"
+	avaxEndpoint   = "/avax"
 	adminEndpoint  = "/admin"
 	ethRPCEndpoint = "/rpc"
 	ethWSEndpoint  = "/ws"
@@ -135,7 +135,7 @@ var (
 	errInvalidMixDigest               = errors.New("invalid mix digest")
 	errInvalidExtDataHash             = errors.New("invalid extra data hash")
 	errHeaderExtraDataTooBig          = errors.New("header extra data too big")
-	errInsufficientFundsForFee        = errors.New("insufficient DJTX funds to pay transaction fee")
+	errInsufficientFundsForFee        = errors.New("insufficient AVAX funds to pay transaction fee")
 	errNoEVMOutputs                   = errors.New("tx has no EVM outputs")
 	errNilBaseFeeApricotPhase3        = errors.New("nil base fee is invalid after apricotPhase3")
 	errNilExtDataGasUsedApricotPhase4 = errors.New("nil extDataGasUsed is invalid after apricotPhase4")
@@ -338,7 +338,7 @@ func (vm *VM) Initialize(
 	vm.codec = Codec
 
 	// TODO: read size from settings
-	vm.mempool = NewMempool(ctx.DJTXAssetID, defaultMempoolSize)
+	vm.mempool = NewMempool(ctx.AVAXAssetID, defaultMempoolSize)
 
 	// Attempt to load last accepted block to determine if it is necessary to
 	// initialize state with the genesis block.
@@ -452,7 +452,7 @@ func (vm *VM) onFinalizeAndAssemble(header *types.Header, state *state.StateDB, 
 		}
 		var contribution, gasUsed *big.Int
 		if rules.IsApricotPhase4 {
-			contribution, gasUsed, err = tx.BlockFeeContribution(vm.ctx.DJTXAssetID, header.BaseFee)
+			contribution, gasUsed, err = tx.BlockFeeContribution(vm.ctx.AVAXAssetID, header.BaseFee)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -485,7 +485,7 @@ func (vm *VM) onExtraStateChange(block *types.Block, state *state.StateDB) (*big
 	switch {
 	// If ApricotPahse4 is enabled, calculate the block fee contribution
 	case vm.chainConfig.IsApricotPhase4(new(big.Int).SetUint64(block.Time())):
-		return tx.BlockFeeContribution(vm.ctx.DJTXAssetID, block.BaseFee())
+		return tx.BlockFeeContribution(vm.ctx.AVAXAssetID, block.BaseFee())
 	default:
 		// Otherwise, there is no contribution
 		return nil, nil, nil
@@ -680,12 +680,12 @@ func (vm *VM) CreateHandlers() (map[string]*commonEng.HTTPHandler, error) {
 		return nil, fmt.Errorf("failed to get primary alias for chain due to %w", err)
 	}
 	apis := make(map[string]*commonEng.HTTPHandler)
-	djtxAPI, err := newHandler("djtx", &DjtxAPI{vm})
+	avaxAPI, err := newHandler("avax", &AvaxAPI{vm})
 	if err != nil {
-		return nil, fmt.Errorf("failed to register service for DJTX API due to %w", err)
+		return nil, fmt.Errorf("failed to register service for AVAX API due to %w", err)
 	}
-	enabledAPIs = append(enabledAPIs, "djtx")
-	apis[djtxEndpoint] = djtxAPI
+	enabledAPIs = append(enabledAPIs, "avax")
+	apis[avaxEndpoint] = avaxAPI
 
 	if vm.config.CorethAdminAPIEnabled {
 		adminAPI, err := newHandler("admin", NewAdminService(vm, fmt.Sprintf("coreth_performance_%s", primaryAlias)))
@@ -969,7 +969,7 @@ func (vm *VM) GetAtomicUTXOs(
 	startAddr ids.ShortID,
 	startUTXOID ids.ID,
 	limit int,
-) ([]*djtx.UTXO, ids.ShortID, ids.ID, error) {
+) ([]*avax.UTXO, ids.ShortID, ids.ID, error) {
 	if limit <= 0 || limit > maxUTXOsToFetch {
 		limit = maxUTXOsToFetch
 	}
@@ -999,9 +999,9 @@ func (vm *VM) GetAtomicUTXOs(
 		lastUTXOID = ids.Empty
 	}
 
-	utxos := make([]*djtx.UTXO, len(allUTXOBytes))
+	utxos := make([]*avax.UTXO, len(allUTXOBytes))
 	for i, utxoBytes := range allUTXOBytes {
-		utxo := &djtx.UTXO{}
+		utxo := &avax.UTXO{}
 		if _, err := vm.codec.Unmarshal(utxoBytes, utxo); err != nil {
 			return nil, ids.ShortID{}, ids.ID{}, fmt.Errorf("error parsing UTXO: %w", err)
 		}
@@ -1035,9 +1035,9 @@ func (vm *VM) GetSpendableFunds(
 		}
 		addr := GetEthAddress(key)
 		var balance uint64
-		if assetID == vm.ctx.DJTXAssetID {
-			// If the asset is DJTX, we divide by the x2cRate to convert back to the correct
-			// denomination of DJTX that can be exported.
+		if assetID == vm.ctx.AVAXAssetID {
+			// If the asset is AVAX, we divide by the x2cRate to convert back to the correct
+			// denomination of AVAX that can be exported.
 			balance = new(big.Int).Div(state.GetBalance(addr), x2cRate).Uint64()
 		} else {
 			balance = state.GetBalanceMultiCoin(addr, common.Hash(assetID)).Uint64()
@@ -1069,15 +1069,15 @@ func (vm *VM) GetSpendableFunds(
 	return inputs, signers, nil
 }
 
-// GetSpendableDJTXWithFee returns a list of EVMInputs and keys (in corresponding
-// order) to total [amount] + [fee] of [DJTX] owned by [keys].
+// GetSpendableAVAXWithFee returns a list of EVMInputs and keys (in corresponding
+// order) to total [amount] + [fee] of [AVAX] owned by [keys].
 // This function accounts for the added cost of the additional inputs needed to
 // create the transaction and makes sure to skip any keys with a balance that is
 // insufficient to cover the additional fee.
 // Note: we return [][]*crypto.PrivateKeySECP256K1R even though each input
 // corresponds to a single key, so that the signers can be passed in to
 // [tx.Sign] which supports multiple keys on a single input.
-func (vm *VM) GetSpendableDJTXWithFee(
+func (vm *VM) GetSpendableAVAXWithFee(
 	keys []*crypto.PrivateKeySECP256K1R,
 	amount uint64,
 	cost uint64,
@@ -1123,8 +1123,8 @@ func (vm *VM) GetSpendableDJTXWithFee(
 		additionalFee := newFee - prevFee
 
 		addr := GetEthAddress(key)
-		// Since the asset is DJTX, we divide by the x2cRate to convert back to
-		// the correct denomination of DJTX that can be exported.
+		// Since the asset is AVAX, we divide by the x2cRate to convert back to
+		// the correct denomination of AVAX that can be exported.
 		balance := new(big.Int).Div(state.GetBalance(addr), x2cRate).Uint64()
 		// If the balance for [addr] is insufficient to cover the additional cost
 		// of adding an input to the transaction, skip adding the input altogether
@@ -1155,7 +1155,7 @@ func (vm *VM) GetSpendableDJTXWithFee(
 		inputs = append(inputs, EVMInput{
 			Address: addr,
 			Amount:  inputAmount,
-			AssetID: vm.ctx.DJTXAssetID,
+			AssetID: vm.ctx.AVAXAssetID,
 			Nonce:   nonce,
 		})
 		signers = append(signers, []*crypto.PrivateKeySECP256K1R{key})

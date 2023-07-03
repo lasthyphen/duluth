@@ -89,15 +89,15 @@ func (api *SnowmanAPI) IssueBlock(ctx context.Context) error {
 	return nil
 }
 
-// DjtxAPI offers Avalanche network related API methods
-type DjtxAPI struct{ vm *VM }
+// AvaxAPI offers Avalanche network related API methods
+type AvaxAPI struct{ vm *VM }
 
 // parseAssetID parses an assetID string into an ID
-func (service *DjtxAPI) parseAssetID(assetID string) (ids.ID, error) {
+func (service *AvaxAPI) parseAssetID(assetID string) (ids.ID, error) {
 	if assetID == "" {
 		return ids.ID{}, fmt.Errorf("assetID is required")
-	} else if assetID == "DJTX" {
-		return service.vm.ctx.DJTXAssetID, nil
+	} else if assetID == "AVAX" {
+		return service.vm.ctx.AVAXAssetID, nil
 	} else {
 		return ids.FromString(assetID)
 	}
@@ -108,7 +108,7 @@ type VersionReply struct {
 }
 
 // ClientVersion returns the version of the VM running
-func (service *DjtxAPI) Version(r *http.Request, args *struct{}, reply *VersionReply) error {
+func (service *AvaxAPI) Version(r *http.Request, args *struct{}, reply *VersionReply) error {
 	reply.Version = Version
 	return nil
 }
@@ -127,7 +127,7 @@ type ExportKeyReply struct {
 }
 
 // ExportKey returns a private key from the provided user
-func (service *DjtxAPI) ExportKey(r *http.Request, args *ExportKeyArgs, reply *ExportKeyReply) error {
+func (service *AvaxAPI) ExportKey(r *http.Request, args *ExportKeyArgs, reply *ExportKeyReply) error {
 	log.Info("EVM: ExportKey called")
 
 	address, err := ParseEthAddress(args.Address)
@@ -165,7 +165,7 @@ type ImportKeyArgs struct {
 }
 
 // ImportKey adds a private key to the provided user
-func (service *DjtxAPI) ImportKey(r *http.Request, args *ImportKeyArgs, reply *api.JSONAddress) error {
+func (service *AvaxAPI) ImportKey(r *http.Request, args *ImportKeyArgs, reply *api.JSONAddress) error {
 	log.Info("EVM: ImportKey called", "username", args.Username)
 
 	if !strings.HasPrefix(args.PrivateKey, constants.SecretKeyPrefix) {
@@ -220,15 +220,15 @@ type ImportArgs struct {
 	To string `json:"to"`
 }
 
-// ImportDJTX is a deprecated name for Import.
-func (service *DjtxAPI) ImportDJTX(_ *http.Request, args *ImportArgs, response *api.JSONTxID) error {
+// ImportAVAX is a deprecated name for Import.
+func (service *AvaxAPI) ImportAVAX(_ *http.Request, args *ImportArgs, response *api.JSONTxID) error {
 	return service.Import(nil, args, response)
 }
 
-// Import issues a transaction to import DJTX from the X-chain. The DJTX
+// Import issues a transaction to import AVAX from the X-chain. The AVAX
 // must have already been exported from the X-Chain.
-func (service *DjtxAPI) Import(_ *http.Request, args *ImportArgs, response *api.JSONTxID) error {
-	log.Info("EVM: ImportDJTX called")
+func (service *AvaxAPI) Import(_ *http.Request, args *ImportArgs, response *api.JSONTxID) error {
+	log.Info("EVM: ImportAVAX called")
 
 	chainID, err := service.vm.ctx.BCLookup.Lookup(args.SourceChain)
 	if err != nil {
@@ -276,8 +276,8 @@ func (service *DjtxAPI) Import(_ *http.Request, args *ImportArgs, response *api.
 	return service.vm.issueTx(tx, true /*=local*/)
 }
 
-// ExportDJTXArgs are the arguments to ExportDJTX
-type ExportDJTXArgs struct {
+// ExportAVAXArgs are the arguments to ExportAVAX
+type ExportAVAXArgs struct {
 	api.UserPass
 
 	// Fee that should be used when creating the tx
@@ -286,30 +286,30 @@ type ExportDJTXArgs struct {
 	// Amount of asset to send
 	Amount json.Uint64 `json:"amount"`
 
-	// ID of the address that will receive the DJTX. This address includes the
+	// ID of the address that will receive the AVAX. This address includes the
 	// chainID, which is used to determine what the destination chain is.
 	To string `json:"to"`
 }
 
-// ExportDJTX exports DJTX from the C-Chain to the X-Chain
+// ExportAVAX exports AVAX from the C-Chain to the X-Chain
 // It must be imported on the X-Chain to complete the transfer
-func (service *DjtxAPI) ExportDJTX(_ *http.Request, args *ExportDJTXArgs, response *api.JSONTxID) error {
+func (service *AvaxAPI) ExportAVAX(_ *http.Request, args *ExportAVAXArgs, response *api.JSONTxID) error {
 	return service.Export(nil, &ExportArgs{
-		ExportDJTXArgs: *args,
-		AssetID:        service.vm.ctx.DJTXAssetID.String(),
+		ExportAVAXArgs: *args,
+		AssetID:        service.vm.ctx.AVAXAssetID.String(),
 	}, response)
 }
 
 // ExportArgs are the arguments to Export
 type ExportArgs struct {
-	ExportDJTXArgs
+	ExportAVAXArgs
 	// AssetID of the tokens
 	AssetID string `json:"assetID"`
 }
 
 // Export exports an asset from the C-Chain to the X-Chain
 // It must be imported on the X-Chain to complete the transfer
-func (service *DjtxAPI) Export(_ *http.Request, args *ExportArgs, response *api.JSONTxID) error {
+func (service *AvaxAPI) Export(_ *http.Request, args *ExportArgs, response *api.JSONTxID) error {
 	log.Info("EVM: Export called")
 
 	assetID, err := service.parseAssetID(args.AssetID)
@@ -371,7 +371,7 @@ func (service *DjtxAPI) Export(_ *http.Request, args *ExportArgs, response *api.
 }
 
 // GetUTXOs gets all utxos for passed in addresses
-func (service *DjtxAPI) GetUTXOs(r *http.Request, args *api.GetUTXOsArgs, reply *api.GetUTXOsReply) error {
+func (service *AvaxAPI) GetUTXOs(r *http.Request, args *api.GetUTXOsArgs, reply *api.GetUTXOsReply) error {
 	service.vm.ctx.Log.Info("EVM: GetUTXOs called for with %s", args.Addresses)
 
 	if len(args.Addresses) == 0 {
@@ -450,7 +450,7 @@ func (service *DjtxAPI) GetUTXOs(r *http.Request, args *api.GetUTXOsArgs, reply 
 }
 
 // IssueTx ...
-func (service *DjtxAPI) IssueTx(r *http.Request, args *api.FormattedTx, response *api.JSONTxID) error {
+func (service *AvaxAPI) IssueTx(r *http.Request, args *api.FormattedTx, response *api.JSONTxID) error {
 	log.Info("EVM: IssueTx called")
 
 	txBytes, err := formatting.Decode(args.Encoding, args.Tx)
@@ -477,7 +477,7 @@ type GetAtomicTxStatusReply struct {
 }
 
 // GetAtomicTxStatus returns the status of the specified transaction
-func (service *DjtxAPI) GetAtomicTxStatus(r *http.Request, args *api.JSONTxID, reply *GetAtomicTxStatusReply) error {
+func (service *AvaxAPI) GetAtomicTxStatus(r *http.Request, args *api.JSONTxID, reply *GetAtomicTxStatusReply) error {
 	log.Info("EVM: GetAtomicTxStatus called", "txID", args.TxID)
 
 	if args.TxID == ids.Empty {
@@ -500,7 +500,7 @@ type FormattedTx struct {
 }
 
 // GetAtomicTx returns the specified transaction
-func (service *DjtxAPI) GetAtomicTx(r *http.Request, args *api.GetTxArgs, reply *FormattedTx) error {
+func (service *AvaxAPI) GetAtomicTx(r *http.Request, args *api.GetTxArgs, reply *FormattedTx) error {
 	log.Info("EVM: GetAtomicTx called", "txID", args.TxID)
 
 	if args.TxID == ids.Empty {

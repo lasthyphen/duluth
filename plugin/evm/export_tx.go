@@ -17,7 +17,7 @@ import (
 	"github.com/lasthyphen/dijetalgo/utils/crypto"
 	"github.com/lasthyphen/dijetalgo/utils/math"
 	"github.com/lasthyphen/dijetalgo/utils/wrappers"
-	"github.com/lasthyphen/dijetalgo/vms/components/djtx"
+	"github.com/lasthyphen/dijetalgo/vms/components/avax"
 	"github.com/lasthyphen/dijetalgo/vms/secp256k1fx"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -25,7 +25,7 @@ import (
 
 // UnsignedExportTx is an unsigned ExportTx
 type UnsignedExportTx struct {
-	djtx.Metadata
+	avax.Metadata
 	// ID of the network on which this tx was issued
 	NetworkID uint32 `serialize:"true" json:"networkID"`
 	// ID of this blockchain.
@@ -35,7 +35,7 @@ type UnsignedExportTx struct {
 	// Inputs
 	Ins []EVMInput `serialize:"true" json:"inputs"`
 	// Outputs that are exported to the chain
-	ExportedOutputs []*djtx.TransferableOutput `serialize:"true" json:"exportedOutputs"`
+	ExportedOutputs []*avax.TransferableOutput `serialize:"true" json:"exportedOutputs"`
 }
 
 // InputUTXOs returns a set of all the hash(address:nonce) exporting funds.
@@ -83,7 +83,7 @@ func (tx *UnsignedExportTx) Verify(
 			return err
 		}
 	}
-	if !djtx.IsSortedTransferableOutputs(tx.ExportedOutputs, Codec) {
+	if !avax.IsSortedTransferableOutputs(tx.ExportedOutputs, Codec) {
 		return errOutputsNotSorted
 	}
 	if rules.IsApricotPhase1 && !IsSortedAndUniqueEVMInputs(tx.Ins) {
@@ -143,7 +143,7 @@ func (tx *UnsignedExportTx) SemanticVerify(
 	}
 
 	// Check the transaction consumes and produces the right amounts
-	fc := djtx.NewFlowChecker()
+	fc := avax.NewFlowChecker()
 	switch {
 	// Apply dynamic fees to export transactions as of Apricot Phase 3
 	case rules.IsApricotPhase3:
@@ -155,11 +155,11 @@ func (tx *UnsignedExportTx) SemanticVerify(
 		if err != nil {
 			return err
 		}
-		fc.Produce(vm.ctx.DJTXAssetID, txFee)
+		fc.Produce(vm.ctx.AVAXAssetID, txFee)
 
 	// Apply fees to export transactions before Apricot Phase 3
 	default:
-		fc.Produce(vm.ctx.DJTXAssetID, params.AvalancheAtomicTxFee)
+		fc.Produce(vm.ctx.AVAXAssetID, params.AvalancheAtomicTxFee)
 	}
 	for _, out := range tx.ExportedOutputs {
 		fc.Produce(out.AssetID(), out.Output().Amount())
@@ -211,12 +211,12 @@ func (tx *UnsignedExportTx) Accept(ctx *snow.Context, batch database.Batch) erro
 
 	elems := make([]*atomic.Element, len(tx.ExportedOutputs))
 	for i, out := range tx.ExportedOutputs {
-		utxo := &djtx.UTXO{
-			UTXOID: djtx.UTXOID{
+		utxo := &avax.UTXO{
+			UTXOID: avax.UTXOID{
 				TxID:        txID,
 				OutputIndex: uint32(i),
 			},
-			Asset: djtx.Asset{ID: out.AssetID()},
+			Asset: avax.Asset{ID: out.AssetID()},
 			Out:   out.Out,
 		}
 
@@ -229,7 +229,7 @@ func (tx *UnsignedExportTx) Accept(ctx *snow.Context, batch database.Batch) erro
 			Key:   utxoID[:],
 			Value: utxoBytes,
 		}
-		if out, ok := utxo.Out.(djtx.Addressable); ok {
+		if out, ok := utxo.Out.(avax.Addressable); ok {
 			elem.Traits = out.Addresses()
 		}
 
@@ -252,8 +252,8 @@ func (vm *VM) newExportTx(
 		return nil, errWrongChainID
 	}
 
-	outs := []*djtx.TransferableOutput{{ // Exported to X-Chain
-		Asset: djtx.Asset{ID: assetID},
+	outs := []*avax.TransferableOutput{{ // Exported to X-Chain
+		Asset: avax.Asset{ID: assetID},
 		Out: &secp256k1fx.TransferOutput{
 			Amt: amount,
 			OutputOwners: secp256k1fx.OutputOwners{
@@ -265,20 +265,20 @@ func (vm *VM) newExportTx(
 	}}
 
 	var (
-		djtxNeeded           uint64 = 0
-		ins, djtxIns         []EVMInput
-		signers, djtxSigners [][]*crypto.PrivateKeySECP256K1R
+		avaxNeeded           uint64 = 0
+		ins, avaxIns         []EVMInput
+		signers, avaxSigners [][]*crypto.PrivateKeySECP256K1R
 		err                  error
 	)
 
-	// consume non-DJTX
-	if assetID != vm.ctx.DJTXAssetID {
+	// consume non-AVAX
+	if assetID != vm.ctx.AVAXAssetID {
 		ins, signers, err = vm.GetSpendableFunds(keys, assetID, amount)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't generate tx inputs/signers: %w", err)
 		}
 	} else {
-		djtxNeeded = amount
+		avaxNeeded = amount
 	}
 
 	rules := vm.currentRules()
@@ -302,22 +302,22 @@ func (vm *VM) newExportTx(
 			return nil, err
 		}
 
-		djtxIns, djtxSigners, err = vm.GetSpendableDJTXWithFee(keys, djtxNeeded, cost, baseFee)
+		avaxIns, avaxSigners, err = vm.GetSpendableAVAXWithFee(keys, avaxNeeded, cost, baseFee)
 	default:
-		var newDjtxNeeded uint64
-		newDjtxNeeded, err = math.Add64(djtxNeeded, params.AvalancheAtomicTxFee)
+		var newAvaxNeeded uint64
+		newAvaxNeeded, err = math.Add64(avaxNeeded, params.AvalancheAtomicTxFee)
 		if err != nil {
 			return nil, errOverflowExport
 		}
-		djtxIns, djtxSigners, err = vm.GetSpendableFunds(keys, vm.ctx.DJTXAssetID, newDjtxNeeded)
+		avaxIns, avaxSigners, err = vm.GetSpendableFunds(keys, vm.ctx.AVAXAssetID, newAvaxNeeded)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate tx inputs/signers: %w", err)
 	}
-	ins = append(ins, djtxIns...)
-	signers = append(signers, djtxSigners...)
+	ins = append(ins, avaxIns...)
+	signers = append(signers, avaxSigners...)
 
-	djtx.SortTransferableOutputs(outs, vm.codec)
+	avax.SortTransferableOutputs(outs, vm.codec)
 	SortEVMInputsAndSigners(ins, signers)
 
 	// Create the transaction
@@ -339,9 +339,9 @@ func (vm *VM) newExportTx(
 func (tx *UnsignedExportTx) EVMStateTransfer(ctx *snow.Context, state *state.StateDB) error {
 	addrs := map[[20]byte]uint64{}
 	for _, from := range tx.Ins {
-		if from.AssetID == ctx.DJTXAssetID {
-			log.Debug("crosschain C->X", "addr", from.Address, "amount", from.Amount, "assetID", "DJTX")
-			// We multiply the input amount by x2cRate to convert DJTX back to the appropriate
+		if from.AssetID == ctx.AVAXAssetID {
+			log.Debug("crosschain C->X", "addr", from.Address, "amount", from.Amount, "assetID", "AVAX")
+			// We multiply the input amount by x2cRate to convert AVAX back to the appropriate
 			// denomination before export.
 			amount := new(big.Int).Mul(
 				new(big.Int).SetUint64(from.Amount), x2cRate)

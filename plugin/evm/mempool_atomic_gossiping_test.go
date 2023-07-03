@@ -10,7 +10,7 @@ import (
 
 	"github.com/lasthyphen/dijetalgo/ids"
 	"github.com/lasthyphen/dijetalgo/utils/crypto"
-	"github.com/lasthyphen/dijetalgo/vms/components/djtx"
+	"github.com/lasthyphen/dijetalgo/vms/components/avax"
 	"github.com/lasthyphen/dijetalgo/vms/components/chain"
 	"github.com/lasthyphen/dijetalgo/vms/secp256k1fx"
 
@@ -124,13 +124,13 @@ func createImportTx(t *testing.T, vm *VM, txID ids.ID, feeAmount uint64) *Tx {
 		NetworkID:    testNetworkID,
 		BlockchainID: testCChainID,
 		SourceChain:  testXChainID,
-		ImportedInputs: []*djtx.TransferableInput{
+		ImportedInputs: []*avax.TransferableInput{
 			{
-				UTXOID: djtx.UTXOID{
+				UTXOID: avax.UTXOID{
 					TxID:        txID,
 					OutputIndex: uint32(0),
 				},
-				Asset: djtx.Asset{ID: testDjtxAssetID},
+				Asset: avax.Asset{ID: testAvaxAssetID},
 				In: &secp256k1fx.TransferInput{
 					Amt: importAmount,
 					Input: secp256k1fx.Input{
@@ -139,11 +139,11 @@ func createImportTx(t *testing.T, vm *VM, txID ids.ID, feeAmount uint64) *Tx {
 				},
 			},
 			{
-				UTXOID: djtx.UTXOID{
+				UTXOID: avax.UTXOID{
 					TxID:        txID,
 					OutputIndex: uint32(1),
 				},
-				Asset: djtx.Asset{ID: testDjtxAssetID},
+				Asset: avax.Asset{ID: testAvaxAssetID},
 				In: &secp256k1fx.TransferInput{
 					Amt: importAmount,
 					Input: secp256k1fx.Input{
@@ -156,18 +156,18 @@ func createImportTx(t *testing.T, vm *VM, txID ids.ID, feeAmount uint64) *Tx {
 			{
 				Address: testEthAddrs[0],
 				Amount:  importAmount - feeAmount,
-				AssetID: testDjtxAssetID,
+				AssetID: testAvaxAssetID,
 			},
 			{
 				Address: testEthAddrs[1],
 				Amount:  importAmount,
-				AssetID: testDjtxAssetID,
+				AssetID: testAvaxAssetID,
 			},
 		},
 	}
 
 	// Sort the inputs and outputs to ensure the transaction is canonical
-	djtx.SortTransferableInputs(importTx.ImportedInputs)
+	avax.SortTransferableInputs(importTx.ImportedInputs)
 	SortEVMOutputs(importTx.Outs)
 
 	tx := &Tx{UnsignedAtomicTx: importTx}
