@@ -24,7 +24,7 @@ type Client struct {
 // NewClient returns a Client for interacting with EVM [chain]
 func NewClient(uri, chain string, requestTimeout time.Duration) *Client {
 	return &Client{
-		requester:      rpc.NewEndpointRequester(uri, fmt.Sprintf("/ext/bc/%s/avax", chain), "avax", requestTimeout),
+		requester:      rpc.NewEndpointRequester(uri, fmt.Sprintf("/ext/bc/%s/djtx", chain), "djtx", requestTimeout),
 		adminRequester: rpc.NewEndpointRequester(uri, fmt.Sprintf("/ext/bc/%s/admin", chain), "admin", requestTimeout),
 	}
 }
@@ -140,18 +140,18 @@ func (c *Client) Import(user api.UserPass, to, sourceChain string) (ids.ID, erro
 	return res.TxID, err
 }
 
-// ExportAVAX sends AVAX from this chain to the address specified by [to].
+// ExportDJTX sends DJTX from this chain to the address specified by [to].
 // Returns the ID of the newly created atomic transaction
-func (c *Client) ExportAVAX(
+func (c *Client) ExportDJTX(
 	user api.UserPass,
 	amount uint64,
 	to string,
 ) (ids.ID, error) {
-	return c.Export(user, amount, to, "AVAX")
+	return c.Export(user, amount, to, "DJTX")
 }
 
 // Export sends an asset from this chain to the P/C-Chain.
-// After this tx is accepted, the AVAX must be imported to the P/C-chain with an importTx.
+// After this tx is accepted, the DJTX must be imported to the P/C-chain with an importTx.
 // Returns the ID of the newly created atomic transaction
 func (c *Client) Export(
 	user api.UserPass,
@@ -161,7 +161,7 @@ func (c *Client) Export(
 ) (ids.ID, error) {
 	res := &api.JSONTxID{}
 	err := c.requester.SendRequest("export", &ExportArgs{
-		ExportAVAXArgs: ExportAVAXArgs{
+		ExportDJTXArgs: ExportDJTXArgs{
 			UserPass: user,
 			Amount:   cjson.Uint64(amount),
 			To:       to,

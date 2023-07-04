@@ -18,7 +18,7 @@ const (
 	defaultPruningEnabled              = true
 	defaultSnapshotAsync               = true
 	defaultRpcGasCap                   = 2500000000 // 25000000 X 100
-	defaultRpcTxFeeCap                 = 100        // 100 AVAX
+	defaultRpcTxFeeCap                 = 100        // 100 DJTX
 	defaultApiMaxDuration              = 0          // Default to no maximum API Call duration
 	defaultMaxBlocksPerRequest         = 0          // Default to no maximum on the number of blocks per getLogs request
 	defaultContinuousProfilerFrequency = 15 * time.Minute

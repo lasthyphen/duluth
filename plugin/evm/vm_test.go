@@ -35,7 +35,7 @@ import (
 	"github.com/lasthyphen/dijetalgo/utils/logging"
 	"github.com/lasthyphen/dijetalgo/utils/units"
 	"github.com/lasthyphen/dijetalgo/version"
-	"github.com/lasthyphen/dijetalgo/vms/components/avax"
+	"github.com/lasthyphen/dijetalgo/vms/components/djtx"
 	"github.com/lasthyphen/dijetalgo/vms/components/chain"
 	"github.com/lasthyphen/dijetalgo/vms/secp256k1fx"
 
@@ -59,7 +59,7 @@ var (
 	testKeys         []*crypto.PrivateKeySECP256K1R
 	testEthAddrs     []common.Address // testEthAddrs[i] corresponds to testKeys[i]
 	testShortIDAddrs []ids.ShortID
-	testAvaxAssetID  = ids.ID{1, 2, 3}
+	testDjtxAssetID  = ids.ID{1, 2, 3}
 	username         = "Johns"
 	password         = "CjasdjhiPeirbSenfeI13" // #nosec G101
 	// Use chainId: 43111, so that it does not overlap with any Avalanche ChainIDs, which may have their
@@ -122,7 +122,7 @@ func NewContext() *snow.Context {
 	ctx := snow.DefaultContextTest()
 	ctx.NetworkID = testNetworkID
 	ctx.ChainID = testCChainID
-	ctx.AVAXAssetID = testAvaxAssetID
+	ctx.DJTXAssetID = testDjtxAssetID
 	ctx.XChainID = ids.Empty.Prefix(0)
 	aliaser := ctx.BCLookup.(ids.Aliaser)
 	_ = aliaser.Alias(testCChainID, "C")
@@ -201,12 +201,12 @@ func GenesisVM(t *testing.T,
 	return issuer, vm, dbManager, m, appSender
 }
 
-func addUTXO(sharedMemory *atomic.Memory, ctx *snow.Context, txID ids.ID, assetID ids.ID, amount uint64, addr ids.ShortID) (*avax.UTXO, error) {
-	utxo := &avax.UTXO{
-		UTXOID: avax.UTXOID{
+func addUTXO(sharedMemory *atomic.Memory, ctx *snow.Context, txID ids.ID, assetID ids.ID, amount uint64, addr ids.ShortID) (*djtx.UTXO, error) {
+	utxo := &djtx.UTXO{
+		UTXOID: djtx.UTXOID{
 			TxID: txID,
 		},
-		Asset: avax.Asset{ID: assetID},
+		Asset: djtx.Asset{ID: assetID},
 		Out: &secp256k1fx.TransferOutput{
 			Amt: amount,
 			OutputOwners: secp256k1fx.OutputOwners{
@@ -235,16 +235,16 @@ func addUTXO(sharedMemory *atomic.Memory, ctx *snow.Context, txID ids.ID, assetI
 	return utxo, nil
 }
 
-// GenesisVMWithUTXOs creates a GenesisVM and generates UTXOs in the X-Chain Shared Memory containing AVAX based on the [utxos] map
+// GenesisVMWithUTXOs creates a GenesisVM and generates UTXOs in the X-Chain Shared Memory containing DJTX based on the [utxos] map
 // Generates UTXOIDs by using a hash of the address in the [utxos] map such that the UTXOs will be generated deterministically.
 func GenesisVMWithUTXOs(t *testing.T, finishBootstrapping bool, genesisJSON string, configJSON string, upgradeJSON string, utxos map[ids.ShortID]uint64) (chan engCommon.Message, *VM, manager.Manager, *atomic.Memory, *engCommon.SenderTest) {
 	issuer, vm, dbManager, sharedMemory, sender := GenesisVM(t, finishBootstrapping, genesisJSON, configJSON, upgradeJSON)
-	for addr, avaxAmount := range utxos {
+	for addr, djtxAmount := range utxos {
 		txID, err := ids.ToID(hashing.ComputeHash256(addr.Bytes()))
 		if err != nil {
 			t.Fatalf("Failed to generate txID from addr: %s", err)
 		}
-		if _, err := addUTXO(sharedMemory, vm.ctx, txID, vm.ctx.AVAXAssetID, avaxAmount, addr); err != nil {
+		if _, err := addUTXO(sharedMemory, vm.ctx, txID, vm.ctx.DJTXAssetID, djtxAmount, addr); err != nil {
 			t.Fatalf("Failed to add UTXO to shared memory: %s", err)
 		}
 	}
@@ -450,7 +450,7 @@ func TestIssueAtomicTxs(t *testing.T) {
 		t.Fatalf("Expected last accepted blockID to be the accepted block: %s, but found %s", blk.ID(), lastAcceptedID)
 	}
 
-	exportTx, err := vm.newExportTx(vm.ctx.AVAXAssetID, importAmount-(2*params.AvalancheAtomicTxFee), vm.ctx.XChainID, testShortIDAddrs[0], initialBaseFee, []*crypto.PrivateKeySECP256K1R{testKeys[0]})
+	exportTx, err := vm.newExportTx(vm.ctx.DJTXAssetID, importAmount-(2*params.AvalancheAtomicTxFee), vm.ctx.XChainID, testShortIDAddrs[0], initialBaseFee, []*crypto.PrivateKeySECP256K1R{testKeys[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1150,11 +1150,11 @@ func TestBonusBlocksTxs(t *testing.T) {
 	}()
 
 	importAmount := uint64(10000000)
-	utxoID := avax.UTXOID{TxID: ids.GenerateTestID()}
+	utxoID := djtx.UTXOID{TxID: ids.GenerateTestID()}
 
-	utxo := &avax.UTXO{
+	utxo := &djtx.UTXO{
 		UTXOID: utxoID,
-		Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+		Asset:  djtx.Asset{ID: vm.ctx.DJTXAssetID},
 		Out: &secp256k1fx.TransferOutput{
 			Amt: importAmount,
 			OutputOwners: secp256k1fx.OutputOwners{
@@ -2804,14 +2804,14 @@ func TestBuildInvalidBlockHead(t *testing.T) {
 		BlockchainID: vm.ctx.ChainID,
 		Outs: []EVMOutput{{
 			Address: common.Address(addr0),
-			Amount:  1 * units.Avax,
-			AssetID: vm.ctx.AVAXAssetID,
+			Amount:  1 * units.Djtx,
+			AssetID: vm.ctx.DJTXAssetID,
 		}},
-		ImportedInputs: []*avax.TransferableInput{
+		ImportedInputs: []*djtx.TransferableInput{
 			{
-				Asset: avax.Asset{ID: vm.ctx.AVAXAssetID},
+				Asset: djtx.Asset{ID: vm.ctx.DJTXAssetID},
 				In: &secp256k1fx.TransferInput{
-					Amt: 1 * units.Avax,
+					Amt: 1 * units.Djtx,
 					Input: secp256k1fx.Input{
 						SigIndices: []uint32{0},
 					},
@@ -2943,11 +2943,11 @@ func TestBuildApricotPhase4Block(t *testing.T) {
 	}
 
 	importAmount := uint64(1000000000)
-	utxoID := avax.UTXOID{TxID: ids.GenerateTestID()}
+	utxoID := djtx.UTXOID{TxID: ids.GenerateTestID()}
 
-	utxo := &avax.UTXO{
+	utxo := &djtx.UTXO{
 		UTXOID: utxoID,
-		Asset:  avax.Asset{ID: vm.ctx.AVAXAssetID},
+		Asset:  djtx.Asset{ID: vm.ctx.DJTXAssetID},
 		Out: &secp256k1fx.TransferOutput{
 			Amt: importAmount,
 			OutputOwners: secp256k1fx.OutputOwners{

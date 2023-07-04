@@ -1,9 +1,9 @@
 # Coreth and the C-Chain
 
-[Avalanche](https://docs.avax.network/learn/platform-overview) is a network composed of multiple blockchains.
+[Avalanche](https://docs.djtx.network/learn/platform-overview) is a network composed of multiple blockchains.
 Each blockchain is an instance of a Virtual Machine (VM), much like an object in an object-oriented language is an instance of a class.
 That is, the VM defines the behavior of the blockchain.
-Coreth (from core Ethereum) is the [Virtual Machine (VM)](https://docs.avax.network/learn/platform-overview#virtual-machines) that defines the Contract Chain (C-Chain).
+Coreth (from core Ethereum) is the [Virtual Machine (VM)](https://docs.djtx.network/learn/platform-overview#virtual-machines) that defines the Contract Chain (C-Chain).
 This chain implements the Ethereum Virtual Machine and supports Solidity smart contracts as well as most other Ethereum client functionality.
 
 ## Building
@@ -21,12 +21,12 @@ The C-Chain supports the following API namespaces:
 - `debug`
 
 Only the `eth` namespace is enabled by default. 
-To enable the other namespaces see the instructions for passing in the `coreth-config` parameter to AvalancheGo: https://docs.avax.network/build/references/command-line-interface#plugins.
-Full documentation for the C-Chain's API can be found [here.](https://docs.avax.network/build/avalanchego-apis/contract-chain-c-chain-api)
+To enable the other namespaces see the instructions for passing in the `coreth-config` parameter to AvalancheGo: https://docs.djtx.network/build/references/command-line-interface#plugins.
+Full documentation for the C-Chain's API can be found [here.](https://docs.djtx.network/build/avalanchego-apis/contract-chain-c-chain-api)
 
 ## Compatibility
 
-The C-Chain is compatible with almost all Ethereum tooling, including [Remix,](https://docs.avax.network/build/tutorials/smart-contracts/deploy-a-smart-contract-on-avalanche-using-remix-and-metamask) [Metamask](https://docs.avax.network/build/tutorials/smart-contracts/deploy-a-smart-contract-on-avalanche-using-remix-and-metamask) and [Truffle.](https://docs.avax.network/build/tutorials/smart-contracts/using-truffle-with-the-avalanche-c-chain)
+The C-Chain is compatible with almost all Ethereum tooling, including [Remix,](https://docs.djtx.network/build/tutorials/smart-contracts/deploy-a-smart-contract-on-avalanche-using-remix-and-metamask) [Metamask](https://docs.djtx.network/build/tutorials/smart-contracts/deploy-a-smart-contract-on-avalanche-using-remix-and-metamask) and [Truffle.](https://docs.djtx.network/build/tutorials/smart-contracts/using-truffle-with-the-avalanche-c-chain)
 
 ## Differences Between Avalanche C-Chain and Ethereum
 
@@ -36,9 +36,9 @@ As a network composed of multiple blockchains, Avalanche uses *atomic transactio
 
 ### Avalanche Native Tokens (ANTs)
 
-The C-Chain supports Avalanche Native Tokens, which are created on the X-Chain using precompiled contracts. These precompiled contracts *nativeAssetCall* and *nativeAssetBalance* support the same interface for ANTs as *CALL* and *BALANCE* do for AVAX with the added parameter of *assetID* to specify the asset.
+The C-Chain supports Avalanche Native Tokens, which are created on the X-Chain using precompiled contracts. These precompiled contracts *nativeAssetCall* and *nativeAssetBalance* support the same interface for ANTs as *CALL* and *BALANCE* do for DJTX with the added parameter of *assetID* to specify the asset.
 
-For the full documentation of precompiles for interacting with ANTs and using them in ARC-20s, see [here](https://docs.avax.network/build/references/coreth-arc20s).
+For the full documentation of precompiles for interacting with ANTs and using them in ARC-20s, see [here](https://docs.djtx.network/build/references/coreth-arc20s).
 
 ### Block Timing
 

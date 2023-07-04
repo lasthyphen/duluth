@@ -156,11 +156,11 @@ func (tx *Tx) Sign(c codec.Manager, signers [][]*crypto.PrivateKeySECP256K1R) er
 	return nil
 }
 
-// BlockFeeContribution calculates how much AVAX towards the block fee contribution was paid
-// for via this transaction denominated in [avaxAssetID] with [baseFee] used to calculate the
+// BlockFeeContribution calculates how much DJTX towards the block fee contribution was paid
+// for via this transaction denominated in [djtxAssetID] with [baseFee] used to calculate the
 // cost of this transaction. This function also returns the [gasUsed] by the
 // transaction for inclusion in the [baseFee] algorithm.
-func (tx *Tx) BlockFeeContribution(avaxAssetID ids.ID, baseFee *big.Int) (*big.Int, *big.Int, error) {
+func (tx *Tx) BlockFeeContribution(djtxAssetID ids.ID, baseFee *big.Int) (*big.Int, *big.Int, error) {
 	if baseFee == nil {
 		return nil, nil, errNilBaseFee
 	}
@@ -175,16 +175,16 @@ func (tx *Tx) BlockFeeContribution(avaxAssetID ids.ID, baseFee *big.Int) (*big.I
 	if err != nil {
 		return nil, nil, err
 	}
-	burned, err := tx.Burned(avaxAssetID)
+	burned, err := tx.Burned(djtxAssetID)
 	if err != nil {
 		return nil, nil, err
 	}
 	if txFee > burned {
-		return nil, nil, fmt.Errorf("insufficient AVAX burned (%d) to cover import tx fee (%d)", burned, txFee)
+		return nil, nil, fmt.Errorf("insufficient DJTX burned (%d) to cover import tx fee (%d)", burned, txFee)
 	}
 	excessBurned := burned - txFee
 
-	// Calculate the amount of AVAX that has been burned above the required fee denominated
+	// Calculate the amount of DJTX that has been burned above the required fee denominated
 	// in C-Chain native 18 decimal places
 	blockFeeContribution := new(big.Int).Mul(new(big.Int).SetUint64(excessBurned), x2cRate)
 	return blockFeeContribution, new(big.Int).SetUint64(gasUsed), nil
@@ -259,7 +259,7 @@ func IsSortedAndUniqueEVMOutputs(outputs []EVMOutput) bool {
 	return utils.IsSortedAndUnique(&innerSortEVMOutputs{outputs: outputs})
 }
 
-// calculates the amount of AVAX that must be burned by an atomic transaction
+// calculates the amount of DJTX that must be burned by an atomic transaction
 // that consumes [cost] at [baseFee].
 func calculateDynamicFee(cost uint64, baseFee *big.Int) (uint64, error) {
 	if baseFee == nil {
@@ -268,12 +268,12 @@ func calculateDynamicFee(cost uint64, baseFee *big.Int) (uint64, error) {
 	bigCost := new(big.Int).SetUint64(cost)
 	fee := new(big.Int).Mul(bigCost, baseFee)
 	feeToRoundUp := new(big.Int).Add(fee, x2cRateMinus1)
-	feeInNAVAX := new(big.Int).Div(feeToRoundUp, x2cRate)
-	if !feeInNAVAX.IsUint64() {
+	feeInNDJTX := new(big.Int).Div(feeToRoundUp, x2cRate)
+	if !feeInNDJTX.IsUint64() {
 		// the fee is more than can fit in a uint64
 		return 0, errFeeOverflow
 	}
-	return feeInNAVAX.Uint64(), nil
+	return feeInNDJTX.Uint64(), nil
 }
 
 func calcBytesCost(len int) uint64 {
